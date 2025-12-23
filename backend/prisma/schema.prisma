@@ -1,0 +1,152 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client/default"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String?   @unique
+  passwordHash  String?
+  steamId       String?   @unique
+  role          UserRole
+  isBanned      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  developerGames DeveloperGame[]
+  bugReports     BugReport[]       @relation("BugReportsByAuthor")
+  threads        Thread[]
+  posts          Post[]
+  userGames      UserGame[]
+  bugReportComments BugReportComment[]
+  bugReportStatusChanges BugReportStatusChange[]
+}
+
+enum UserRole {
+  USER
+  DEVELOPER
+  ADMIN
+}
+
+model Game {
+  id           Int       @id @default(autoincrement())
+  steamAppId   Int       @unique
+  title        String
+  description  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  developerGames DeveloperGame[]
+  userGames       UserGame[]
+  threads         Thread[]
+  bugReports      BugReport[]
+}
+
+model DeveloperGame {
+  developerId Int
+  gameId      Int
+
+  developer User @relation(fields: [developerId], references: [id])
+  game      Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@id([developerId, gameId])
+}
+
+model UserGame {
+  userId       Int
+  gameId       Int
+  lastSyncedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@id([userId, gameId])
+}
+
+model Thread {
+  id        Int      @id @default(autoincrement())
+  gameId    Int
+  authorId  Int
+  title     String
+  isDeleted Boolean  @default(false)
+  isLocked  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+  posts  Post[]
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  threadId  Int
+  authorId  Int
+  content   String
+  isDeleted Boolean  @default(false)
+  isSpoiler Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+}
+
+model BugReport {
+  id          Int                @id @default(autoincrement())
+  gameId      Int
+  authorId    Int
+  title       String
+  description String
+  status      BugReportStatus
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  game      Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  author    User   @relation("BugReportsByAuthor", fields: [authorId], references: [id])
+  comments  BugReportComment[]
+  statusLog BugReportStatusChange[]
+}
+
+enum BugReportStatus {
+  PENDING_ADMIN
+  REJECTED_BY_ADMIN
+  VISIBLE_TO_DEV
+  IN_PROGRESS
+  FIXED
+  CLOSED
+}
+
+model BugReportComment {
+  id          Int      @id @default(autoincrement())
+  bugReportId Int
+  authorId    Int
+  content     String
+  createdAt   DateTime @default(now())
+
+  bugReport BugReport @relation(fields: [bugReportId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id])
+}
+
+model BugReportStatusChange {
+  id          Int              @id @default(autoincrement())
+  bugReportId Int
+  changedById Int
+  oldStatus   BugReportStatus
+  newStatus   BugReportStatus
+  createdAt   DateTime         @default(now())
+
+  bugReport BugReport @relation(fields: [bugReportId], references: [id], onDelete: Cascade)
+  changedBy User      @relation(fields: [changedById], references: [id])
+}

@@ -1,0 +1,51 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:16
+    container_name: graygay-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: graygay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db_data:/var/lib/postgresql/data
+  adminer:
+    image: dpage/pgadmin4:8.13
+    container_name: graygay-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@graygay.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+  api:
+    build:
+      context: ./backend
+    container_name: graygay-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/graygay?schema=public
+      STEAM_API_KEY: ${STEAM_API_KEY:-changeme}
+      STEAM_OPENID_RETURN_URL: ${STEAM_OPENID_RETURN_URL:-http://localhost:3000/api/auth/steam/callback}
+      JWT_SECRET: ${JWT_SECRET:-supersecret}
+      SESSION_SECRET: ${SESSION_SECRET:-sessionsecret}
+      ADMIN_DEFAULT_EMAIL: ${ADMIN_DEFAULT_EMAIL:-admin@example.com}
+      ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:-password123}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  db_data:
